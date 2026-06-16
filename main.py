@@ -14,6 +14,7 @@ if str(BASE_DIR) not in sys.path:
 
 from qa_service import QASystem
 
+
 app = FastAPI(title="RAG Document Q&A API")
 
 app.add_middleware(
@@ -46,11 +47,12 @@ async def read_home():
 
 @app.post("/api/upload")
 async def upload_documents(files: list[UploadFile] = File(...)):
+    qa_service = get_qa_service()
     saved_files = await qa_service.save_uploaded_files(files)
     if not saved_files:
         raise HTTPException(status_code=400, detail="No files uploaded")
 
-    qa_service = get_qa_service()
+    # qa_service = get_qa_service()
     indexed_chunks = qa_service.build_index_from_folder(Path(qa_service.upload_dir))
     return {
         "status": "success",

@@ -7,6 +7,8 @@ from document_upload.upload_doc import upload_document
 from Vector.vector_store import VectorStore
 from langchain_ollama import ChatOllama
 from ollama._types import ResponseError
+from tools.rag_tools import calculator, check_current_date
+from langchain_core.tools import tool
 
 
 class QASystem:
@@ -15,7 +17,7 @@ class QASystem:
         persist_dir: str,
         upload_dir: str,
         embedding_model: str = "all-MiniLM-L6-v2",
-        llm_model: str = "gemma3",
+        llm_model: str = "qwen3",
     ):
         self.persist_dir = Path(persist_dir)
         self.upload_dir = Path(upload_dir)
@@ -24,6 +26,16 @@ class QASystem:
 
         self.vector_store = VectorStore(self.persist_dir.as_posix(), embedding_model)
         self.llm = ChatOllama(model=llm_model, temperature=0.2, num_predict=512)
+        self.search_tool = tool(
+            self.search_documents,
+            description="Search indexed documents and return relevant excerpts.",
+        )
+        self.tools = [
+            self.search_tool,
+            calculator,
+            check_current_date,
+        ]
+        self.llm_with_tools = self.llm.bind_tools(self.tools, tool_choice="auto")
 
         faiss_file = self.persist_dir / "faiss.index"
         metadata_file = self.persist_dir / "pickel.index"
@@ -61,13 +73,14 @@ class QASystem:
 
         prompt = (
             "You are an expert assistant answering questions from provided document excerpts. "
-            "Use the document text only, be detailed, and cite the information clearly.\n\n"
+            "You may use the search_documents tool to retrieve the most relevant document excerpts if needed. "
+            "Return a final answer based on the provided documents and cite any excerpts used.\n\n"
             f"Question: {question}\n\n"
             f"Document excerpts:\n{context}\n\n"
             "Give a thorough answer based on the documents. If the answer is not in the documents, say that the information is unavailable."
         )
         try:
-            response = self.llm.invoke([prompt], reasoning=True)
+            response = self.llm_with_tools.invoke([prompt], reasoning=True)
         except ResponseError as exc:
             if "does not support thinking" in str(exc):
                 response = self.llm.invoke([prompt])
@@ -78,3 +91,13 @@ class QASystem:
         if reasoning:
             answer_text += f"\n\n[Reasoning]\n{reasoning}"
         return answer_text
+    
+    def search_documents(self,query:str, top_k:int=5):
+        """
+        Search uploaded HR policy documents and return relevant text.
+        """
+        results=self.vector_store.embed_query(query, top_k=top_k)
+        
+        texts=[r["metadata"].get("text", "") for r in results if r.get("metadata")]
+        
+        return "\n\n".join(texts)

@@ -34,7 +34,7 @@ class VectorStore:
         
         
     def add_embeddings(self, embeddings:np.ndarray, metadatas:List[Any]=None):
-        dim=embeddings.shape[1]
+        dim=embeddings.shape[0]
         if self.index is None:
             self.index=faiss.IndexFlatL2(dim)
         self.index.add(embeddings)
