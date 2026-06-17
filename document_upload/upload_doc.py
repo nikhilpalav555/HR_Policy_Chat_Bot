@@ -1,5 +1,5 @@
 from pathlib import Path
-from langchain_community.document_loaders import TextLoader, PyPDFLoader, CSVLoader
+from langchain_community.document_loaders import TextLoader, PyPDFLoader, CSVLoader, JSONLoader
 from typing import List, Any
 
 
@@ -40,7 +40,17 @@ def upload_document(documents:str)->List[Any]:
             docs.extend(load_csv)
             print(f"Loaded csv file successfully {csv_file}")
         except Exception as e:
-            print(f"Error loading file {e}") 
+            print(f"Error loading file {e}")
+    
+    json_files=list(path_lib.glob("**/*.json"))
+    for json_file in json_files:
+        try:
+            json_load=JSONLoader(json_file, jq_data_path=".", content_key="content")
+            load_json=json_load.load()
+            docs.extend(load_json)
+            print(f"Loaded json file successfully {json_file}")
+        except Exception as e:
+            print(f"Error loading file {e}")
             
     return docs
             
